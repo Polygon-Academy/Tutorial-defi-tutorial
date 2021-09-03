@@ -1,0 +1,5 @@
+export const alTokenAddress = "0x316F8F102F673F093226bdbe64d73e65E1224e0a"
+export const tokenAddresses = {"MATIC":"0x5e13534156BB9A537b8E7A3D6ABa11d0c71E6Dd1","WETH":"0xECebc9499A3A6dff4E2e86b5DA54CB977D804aE5","BTCB":"0x626a811F275DB49258b8758fe3b35C3Ac48a5596"}
+export const bandPriceOracleAddress = "0x337B0FB7e3281D2d0ae3CF7D6802d944Ec21b759"
+export const lendingPoolAddress = "0x6cDe603dFC41CF440974FFE2017ad9754cF66bbC"
+    
