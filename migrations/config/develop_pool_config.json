@@ -1,0 +1,26 @@
+{
+  "WETH": {
+    "baseBorrowRate": "10000000000000000",
+    "rateSlope1": "20000000000000000",
+    "rateSlope2": "40000000000000000",
+    "collateralPercent": "650000000000000000",
+    "liquidationBonus": "1050000000000000000",
+    "pair": ["WETH", "USD"]
+  },
+  "MATIC": {
+    "baseBorrowRate": "10000000000000000",
+    "rateSlope1": "20000000000000000",
+    "rateSlope2": "40000000000000000",
+    "collateralPercent": "750000000000000000",
+    "liquidationBonus": "1050000000000000000",
+    "pair": ["MATIC", "USD"]
+  },
+  "BTCB": {
+    "baseBorrowRate": "10000000000000000",
+    "rateSlope1": "20000000000000000",
+    "rateSlope2": "40000000000000000",
+    "collateralPercent": "750000000000000000",
+    "liquidationBonus": "1050000000000000000",
+    "pair": ["BTCB", "USD"]
+  }
+}
