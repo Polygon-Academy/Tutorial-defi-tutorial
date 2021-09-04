@@ -13,7 +13,7 @@ import DashBoard from './components/Lending/dashboard';
 
 const getLibrary = (provider) => {
   const library = new Web3Provider(provider);
-  library.pollingInterval = 8000;
+  library.pollingInterval = 2000;
   return library;
 };
 

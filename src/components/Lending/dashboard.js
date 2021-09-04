@@ -11,25 +11,23 @@ import IPoolConfigure from '../../abis/IPoolConfiguration.json'
 import IERC20 from '../../abis/IERC20.json'
 import { tokenAddresses, lendingPoolAddress, bandPriceOracleAddress } from '../../config'
 
+import { fixNumber } from './Util/lib'
 import styles from './lending.module.css'
 import Deposit from './deposit';
 import Borrow from './borrow';
 
 
 const DashBoard = () => {
-    const { library, account } = useWeb3React();
-    const [forceUpdate, setForceUpdate] = useState(false)
+    const { library, account, active } = useWeb3React();
     const [homeDashboard, setHomeDashboard] = useState([])
     const [userDashboard, setUserDashborard] = useState()
 
-    const toforceUpdate = () => {
-        setForceUpdate(!forceUpdate)
-    }
 
     useEffect(() => {
 
+
         const convertInt = (BigNumber) => {
-            return BigNumber.div(1e9).div(1e9).toNumber()
+            return fixNumber(BigNumber.div(1e9).toNumber() / 1e9)
         }
 
         const loadDashboard = async () => {
@@ -66,8 +64,8 @@ const DashBoard = () => {
                     const PoolConfContract = new ethers.Contract(token.poolConfAddress, IPoolConfigure.abi, provider)
                     const rateData = await PoolConfContract.calculateInterestRate(data.totalBorrows, data.totalLiquidity)
                     token['borrowRate'] = rateData.div(1e9).toNumber() / 1e7
-                    token['borrowAPY'] = token['borrowRate'] 
-                    token['depositAPY'] = (token['tBorrow'] * (1 + token['borrowRate'])) / token['tLiquidity']
+                    token['borrowAPY'] = token['borrowRate'].toFixed(2)
+                    token['depositAPY'] = ((token['tBorrow'] * (1 + token['borrowRate'])) / token['tLiquidity']).toFixed(2)
 
                     // user ERC20 Token Pool INFO
                     const ucData = await LendingContract.getUserPoolData(account, address);
@@ -92,18 +90,18 @@ const DashBoard = () => {
             }
         }
         loadDashboard()
-    }, [account, library, forceUpdate])
+    }, [account, library, active])
 
 
     const panes = [
         {
             menuItem: 'Deposit', render: () => <Tab.Pane className={styles.OperateTabPane} style={{ border: "0px" }}>
-                <Deposit tokens={homeDashboard} userDatas={userDashboard} forceUpdate={toforceUpdate}/></Tab.Pane>
+                <Deposit tokens={homeDashboard} userDatas={userDashboard} /></Tab.Pane>
         },
 
         {
             menuItem: 'Borrow', render: () => <Tab.Pane className={styles.OperateTabPane} style={{ border: "0px" }}>
-                <Borrow tokens={homeDashboard} userDatas={userDashboard} forceUpdate={toforceUpdate}/></Tab.Pane>
+                <Borrow tokens={homeDashboard} userDatas={userDashboard} /></Tab.Pane>
         }
     ]
 

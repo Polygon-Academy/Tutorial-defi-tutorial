@@ -6,11 +6,10 @@ import { Table, Button, Modal, Header, Container, Input, Label } from 'semantic-
 import Item from './Util/item'
 import ButtonPercent from './Util/buttonPercent'
 
-
+import { fixNumber } from './Util/lib'
 import IERC20 from '../../abis/IERC20.json'
 import LendingPool from '../../abis/LendingPool.json';
 import { lendingPoolAddress } from '../../config'
-
 
 
 // import image 
@@ -73,7 +72,7 @@ const Deposit = (props) => {
                     Boolean(tokens.length) && (
                         _tokens.map((token, i) => (
                             <Table.Row key={token.symbol}>
-                                <Table.Cell className="ListTableImage"><img src={token.imageUrl} alt=''></img>{token.symbol} </Table.Cell>
+                                <Table.Cell className="ListTableImage" style={{ paddingTop: "1.3rem" }}><img src={token.imageUrl} alt=''></img>{token.symbol} </Table.Cell>
                                 <Table.Cell> {userDatas[token.symbol].balance} </Table.Cell>
                                 <Table.Cell> {userDatas[token.symbol].liquidityBalance} </Table.Cell>
                                 <Table.Cell> {token.depositAPY ? `${token.depositAPY} %` : `-`} </Table.Cell>
@@ -90,8 +89,8 @@ const Deposit = (props) => {
                 }
             </Table.Body>
 
-            <DepositModal Visible={DepositVisible} SetVisible={setDepositVisible} Token={ModalToken} UserData={ModalUserData}  UserTokenData={ModalUserTokenData} />
-            <WithDrawModal Visible={WithDrawVisible} SetVisible={setWithDrawVisible} Token={ModalToken} UserData={ModalUserData}  UserTokenData={ModalUserTokenData} />
+            <DepositModal Visible={DepositVisible} SetVisible={setDepositVisible} Token={ModalToken} UserData={ModalUserData} UserTokenData={ModalUserTokenData} />
+            <WithDrawModal Visible={WithDrawVisible} SetVisible={setWithDrawVisible} Token={ModalToken} UserData={ModalUserData} UserTokenData={ModalUserTokenData} />
 
         </Table>
     )
@@ -109,8 +108,9 @@ const DepositModal = (props) => {
         const ERC20Contract = new ethers.Contract(Token.tokenAddr, IERC20.abi, provider)
         const LendingContract = new ethers.Contract(lendingPoolAddress, LendingPool.abi, provider)
         await ERC20Contract.approve(lendingPoolAddress, ethers.utils.parseUnits(depositAmount.toString(), 18))
-        await LendingContract.deposit(Token.tokenAddr, ethers.utils.parseUnits(depositAmount.toString(), 18))
+        const tx = await LendingContract.deposit(Token.tokenAddr, ethers.utils.parseUnits(depositAmount.toString(), 18))
 
+        await tx.wait()
         handleCloseVisible()
         window.location.reload()
     }
@@ -139,10 +139,10 @@ const DepositModal = (props) => {
                     <Item
                         title="Wallet balance"
                         content={`${UserTokenData.balance} ${Token.symbol}`}
-                        end={`($${UserTokenData.balance * Token.price})`} />
+                        end={`($${fixNumber(UserTokenData.balance * Token.price)})`} />
                     <Item
                         title="Borrow Limit"
-                        content={`$${UserData.tCollateralBalance} -> $${UserData.tCollateralBalance + 0.75 * depositAmount * Token.price}`}
+                        content={`$${UserData.tCollateralBalance} -> $${fixNumber(UserData.tCollateralBalance + (0.75 * depositAmount * Token.price))}`}
                     />
                     <h4>How much would you like to deposit?</h4>
                     <p>You can set the amount you want to deposit or use the percentage button below. These percentages are according to your Wallet balance</p>
@@ -173,8 +173,13 @@ const WithDrawModal = (props) => {
     const handleWithdraw = async () => {
         const provider = account ? library.getSigner() : library;
         const LendingContract = new ethers.Contract(lendingPoolAddress, LendingPool.abi, provider)
-        await LendingContract.withdraw(Token.tokenAddr, ethers.utils.parseUnits(withdrawAmount.toString(), 18))
+        const tx = await LendingContract.withdraw(Token.tokenAddr, ethers.utils.parseUnits(withdrawAmount.toString(), 18))
 
+        await tx.wait()
+        if(tx.code !== 200){
+            alert (tx.message)
+        }
+        
         handleCloseVisible()
         window.location.reload()
     }
@@ -186,7 +191,7 @@ const WithDrawModal = (props) => {
 
     const CalculateWithdraw = () => {
         const maxWithdraw = (UserData.tLiquidityBalance - UserData.tBorrowBalance) / Token.price
-        return maxWithdraw > UserTokenData.liquidityBalance ? UserTokenData.liquidityBalance : maxWithdraw
+        return maxWithdraw > UserTokenData.liquidityBalance ? fixNumber(UserTokenData.liquidityBalance) : fixNumber(maxWithdraw)
     }
 
 
@@ -209,10 +214,10 @@ const WithDrawModal = (props) => {
                     <Item
                         title="Borrow balance"
                         content={`${UserTokenData.borrowBalance} ${Token.symbol}`}
-                        end={`($${UserTokenData.borrowBalance * Token.price})`} />
+                        end={`($${fixNumber(UserTokenData.borrowBalance * Token.price)})`} />
                     <Item
                         title="Borrow Limit"
-                        content={`$${UserData.tCollateralBalance} -> $${UserData.tLiquidityBalance - withdrawAmount * Token.price}`}
+                        content={`$${UserData.tCollateralBalance} -> $${fixNumber(UserData.tCollateralBalance - (withdrawAmount * Token.price) * 0.75)}`}
                     />
 
                     <h4>How much would you like to withdraw?</h4>
