@@ -7,9 +7,10 @@ import Item from './Util/item'
 import ButtonPercent from './Util/buttonPercent'
 
 
+import { fixNumber } from './Util/lib'
+import IERC20 from '../../abis/IERC20.json'
 import LendingPool from '../../abis/LendingPool.json';
 import { lendingPoolAddress } from '../../config'
-
 
 
 // import image 
@@ -59,6 +60,7 @@ const Borrow = (props) => {
             <Table.Header>
                 <Table.Row>
                     <Table.HeaderCell>Asset</Table.HeaderCell>
+                    <Table.HeaderCell>Wallet balance</Table.HeaderCell>
                     <Table.HeaderCell>Your borrow balance</Table.HeaderCell>
                     <Table.HeaderCell>Borrow APY</Table.HeaderCell>
                     <Table.HeaderCell></Table.HeaderCell>
@@ -71,13 +73,14 @@ const Borrow = (props) => {
                     Boolean(tokens.length) && (
                         _tokens.map((token, i) => (
                             <Table.Row key={token.symbol}>
-                                <Table.Cell className="ListTableImage"><img src={token.imageUrl} alt=''></img>{token.symbol} </Table.Cell>
+                                <Table.Cell className="ListTableImage" style={{ paddingTop: "1.3rem" }}><img src={token.imageUrl} alt=''></img>{token.symbol} </Table.Cell>
+                                <Table.Cell> {userDatas[token.symbol].balance} </Table.Cell>
                                 <Table.Cell> {userDatas[token.symbol].borrowBalance} </Table.Cell>
                                 <Table.Cell> {token.borrowAPY ? `${token.borrowAPY} %` : `-`} </Table.Cell>
                                 <Table.Cell>
                                     <Button basic color="teal" size="small" onClick={(e) => borrowModal(token, userDatas)}>Borrow</Button>
 
-                                    {userDatas[token.symbol].liquidityBalance > 0 && (
+                                    {userDatas[token.symbol].borrowBalance > 0.01 && (
                                         <Button basic color="grey" size="small" onClick={(e) => repayModal(token, userDatas)}>Repay</Button>
                                     )}
 
@@ -97,20 +100,16 @@ const Borrow = (props) => {
 
 const BorrowModal = (props) => {
     const { Visible, SetVisible, Token, UserData, UserTokenData } = props
-    const [borrowAmount, setBorrowAmount] = useState(0)
     const { library, account } = useWeb3React()
+    const [borrowAmount, setBorrowAmount] = useState(0)
 
 
     const handleBorrow = async () => {
         const provider = account ? library.getSigner() : library;
         const LendingContract = new ethers.Contract(lendingPoolAddress, LendingPool.abi, provider)
-        const res = await LendingContract.borrow(Token.tokenAddr, ethers.utils.parseUnits(borrowAmount.toString(), 18))
+        const tx = await LendingContract.borrow(Token.tokenAddr, ethers.utils.parseUnits(borrowAmount.toString(), 18))
 
-        console.log(res)
-        if (res.code !== 200) {
-            alert(res.message)
-        }
-
+        await tx.wait()
         handleCloseVisible()
         window.location.reload()
     }
@@ -122,7 +121,7 @@ const BorrowModal = (props) => {
 
     const CalculateBorrow = () => {
         const maxBorrow = (UserData.tCollateralBalance - UserData.tBorrowBalance) / Token.price
-        return maxBorrow < Token.tAvaiLiquidity ? maxBorrow : Token.tAvaiLiquidity
+        return maxBorrow < Token.tAvaiLiquidity ? fixNumber(maxBorrow) : fixNumber(Token.tAvaiLiquidity)
     }
 
     return (
@@ -144,17 +143,15 @@ const BorrowModal = (props) => {
                     <Item
                         title="Borrow balance"
                         content={`${UserTokenData.borrowBalance} ${Token.symbol}`}
-                        end={`($${UserTokenData.borrowBalance * Token.price})`} />
-
+                        end={`($${fixNumber(UserTokenData.borrowBalance * Token.price)})`} />
 
                     <Item
                         title="Borrow Limit used"
-                        content={`${UserData.tBorrowBalance / UserData.tCollateralBalance * 100}% -> ${(UserData.tBorrowBalance + borrowAmount * Token.price) / UserData.tCollateralBalance * 100}% `}
+                        content={`${fixNumber(UserData.tBorrowBalance / UserData.tCollateralBalance * 100)}% -> ${fixNumber((UserData.tBorrowBalance + borrowAmount * Token.price) / UserData.tCollateralBalance * 100)}% `}
                     />
-
                     <Item
                         title="Borrow Limit"
-                        content={`$${UserData.tCollateralBalance} -> $${UserData.tCollateralBalance - (borrowAmount * Token.price)}`}
+                        content={`$${UserData.tCollateralBalance} -> $${fixNumber(UserData.tCollateralBalance - (borrowAmount * Token.price))}`}
                     />
                     <h4>How much would you like to borrow?</h4>
                     <p>You can set the amount you want to borrow or use the percentage buttons below.
@@ -185,10 +182,14 @@ const RepayModal = (props) => {
 
     const handleRepay = async () => {
         const provider = account ? library.getSigner() : library;
+        const ERC20Contract = new ethers.Contract(Token.tokenAddr, IERC20.abi, provider)
         const LendingContract = new ethers.Contract(lendingPoolAddress, LendingPool.abi, provider)
-        await LendingContract.repayByAmount(Token.tokenAddr, ethers.utils.parseUnits(repayAmount.toString().slice(0,8), 18))
+        await ERC20Contract.approve(lendingPoolAddress, ethers.utils.parseUnits(repayAmount.toString(), 18))
+        const tx = await LendingContract.repayByAmount(Token.tokenAddr, ethers.utils.parseUnits(repayAmount.toString().slice(0, 8), 18))
 
+        await tx.wait()
         handleCloseVisible()
+        window.location.reload()
     }
 
     const handleCloseVisible = () => {
@@ -198,7 +199,7 @@ const RepayModal = (props) => {
 
     const CalculateRepay = () => {
         const maxRepay = (UserData.tBorrowBalance) / Token.price
-        return maxRepay > UserTokenData.tBorrowBalance ? UserTokenData.liquidityBalance : maxRepay
+        return maxRepay > UserTokenData.tBorrowBalance ? fixNumber(UserTokenData.liquidityBalance) : fixNumber(maxRepay)
     }
 
 
@@ -217,15 +218,15 @@ const RepayModal = (props) => {
                     <Item
                         title="Borrow balance"
                         content={`${UserTokenData.borrowBalance} ${Token.symbol}`}
-                        end={`($${UserTokenData.borrowBalance * Token.price})`} />
+                        end={`($${fixNumber(UserTokenData.borrowBalance * Token.price)})`} />
                     <Item
                         title="Wallet balance"
                         content={`${UserTokenData.balance} ${Token.symbol}`}
-                        end={`($${UserTokenData.balance * Token.price})`} />
+                        end={`($${fixNumber(UserTokenData.balance * Token.price)})`} />
 
                     <Item
                         title="Borrow Limit used"
-                        content={`${UserData.tBorrowBalance / UserData.tCollateralBalance * 100}% -> ${(UserData.tBorrowBalance - repayAmount * Token.price) / UserData.tCollateralBalance * 100} `}
+                        content={`${fixNumber(UserData.tBorrowBalance / UserData.tCollateralBalance * 100, 2)}% -> ${fixNumber((UserData.tBorrowBalance - repayAmount * Token.price) / UserData.tCollateralBalance * 100, 2)} `}
                     />
                     <Item
                         title="Borrow Limit"
