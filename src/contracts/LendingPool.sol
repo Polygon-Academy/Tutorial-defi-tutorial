@@ -5,12 +5,9 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "./interfaces/IAlphaDistributor.sol";
-import "./interfaces/IAlphaReceiver.sol";
 import "./interfaces/ILendingPool.sol";
 import "./interfaces/IPoolConfiguration.sol";
 import "./interfaces/IPriceOracle.sol";
-import "./interfaces/IVestingAlpha.sol";
 import "./AlToken.sol";
 import "./AlTokenDeployer.sol";
 import "./libraries/WadMath.sol";
@@ -23,7 +20,7 @@ import "./libraries/Math.sol";
  * @author Alpha
  **/
 
-contract LendingPool is Ownable, ILendingPool, IAlphaReceiver, ReentrancyGuard {
+contract LendingPool is Ownable, ILendingPool, ReentrancyGuard {
   using SafeMath for uint256;
   using WadMath for uint256;
   using Math for uint256;
@@ -234,10 +231,7 @@ contract LendingPool is Ownable, ILendingPool, IAlphaReceiver, ReentrancyGuard {
    */
   IPriceOracle priceOracle;
 
-  /**
-   * @dev alpha token address contract.
-   */
-  IAlphaDistributor public override distributor;
+
 
   /**
    * @dev AltokenDeployer address
@@ -246,7 +240,6 @@ contract LendingPool is Ownable, ILendingPool, IAlphaReceiver, ReentrancyGuard {
   /**
    * @dev VestingAlpha address
    */
-  IVestingAlpha public override vestingAlpha;
   // max purchase percent of each liquidation
   // max purchase shares is 50% of user borrow shares
   uint256 public constant CLOSE_FACTOR = 0.5 * 1e18;
@@ -283,16 +276,6 @@ contract LendingPool is Ownable, ILendingPool, IAlphaReceiver, ReentrancyGuard {
     );
     pool.lastUpdateTimestamp = block.timestamp;
     emit PoolInterestUpdated(address(_token), cumulativeBorrowInterest, pool.totalBorrows);
-    _;
-  }
-
-  /**
-   * @dev update Alpha reward by call poke on distribution contract.
-   */
-  modifier updateAlphaReward() {
-    if (address(distributor) != address(0)) {
-      distributor.poke();
-    }
     _;
   }
 
@@ -713,7 +696,6 @@ contract LendingPool is Ownable, ILendingPool, IAlphaReceiver, ReentrancyGuard {
     external
     nonReentrant
     updatePoolWithInterestsAndTimestamp(_token)
-    updateAlphaReward
   {
     Pool storage pool = pools[address(_token)];
     require(pool.status == PoolStatus.ACTIVE, "can't deposit to this pool");
@@ -746,7 +728,6 @@ contract LendingPool is Ownable, ILendingPool, IAlphaReceiver, ReentrancyGuard {
     external
     nonReentrant
     updatePoolWithInterestsAndTimestamp(_token)
-    updateAlphaReward
   {
     Pool storage pool = pools[address(_token)];
     UserPoolData storage userData = userPoolData[msg.sender][address(_token)];
@@ -757,8 +738,6 @@ contract LendingPool is Ownable, ILendingPool, IAlphaReceiver, ReentrancyGuard {
       "amount is more than available liquidity on pool"
     );
 
-    // 0. Claim alpha token from latest borrow
-    claimCurrentAlphaReward(_token, msg.sender);
 
     // 1. calculate borrow share amount
     uint256 borrowShare = calculateRoundUpBorrowShareAmount(_token, _amount);
@@ -789,7 +768,6 @@ contract LendingPool is Ownable, ILendingPool, IAlphaReceiver, ReentrancyGuard {
     external
     nonReentrant
     updatePoolWithInterestsAndTimestamp(_token)
-    updateAlphaReward
   {
     // calculate round down borrow share
     uint256 repayShare = calculateRoundDownBorrowShareAmount(_token, _amount);
@@ -807,7 +785,6 @@ contract LendingPool is Ownable, ILendingPool, IAlphaReceiver, ReentrancyGuard {
     external
     nonReentrant
     updatePoolWithInterestsAndTimestamp(_token)
-    updateAlphaReward
   {
     repayInternal(_token, _share);
   }
@@ -833,8 +810,6 @@ contract LendingPool is Ownable, ILendingPool, IAlphaReceiver, ReentrancyGuard {
       paybackShares = userData.borrowShares;
     }
 
-    // 0. Claim alpha token from latest borrow
-    claimCurrentAlphaReward(_token, msg.sender);
 
     // 1. calculate round up payback token
     uint256 paybackAmount = calculateRoundUpBorrowAmount(_token, paybackShares);
@@ -866,7 +841,6 @@ contract LendingPool is Ownable, ILendingPool, IAlphaReceiver, ReentrancyGuard {
     external
     nonReentrant
     updatePoolWithInterestsAndTimestamp(_token)
-    updateAlphaReward
   {
     Pool storage pool = pools[address(_token)];
     uint256 alBalance = pool.alToken.balanceOf(msg.sender);
@@ -912,7 +886,6 @@ contract LendingPool is Ownable, ILendingPool, IAlphaReceiver, ReentrancyGuard {
     nonReentrant
     updatePoolWithInterestsAndTimestamp(_token)
     updatePoolWithInterestsAndTimestamp(_collateral)
-    updateAlphaReward
   {
     liquidateInternal(_user, _token, _liquidateShares, _collateral);
   }
@@ -957,8 +930,6 @@ contract LendingPool is Ownable, ILendingPool, IAlphaReceiver, ReentrancyGuard {
       "can't liquidate this pool"
     );
 
-    // 0. Claim alpha token from latest user borrow
-    claimCurrentAlphaReward(_token, _user);
 
     // 1. check account health of user to make sure that liquidator can liquidate this account
     require(!isAccountHealthy(_user), "user's account is healthy. can't liquidate this account");
@@ -1079,174 +1050,5 @@ contract LendingPool is Ownable, ILendingPool, IAlphaReceiver, ReentrancyGuard {
     _token.safeTransfer(msg.sender, _amount);
     pool.poolReserves = pool.poolReserves.sub(_amount);
     emit ReserveWithdrawn(address(_token), _amount, msg.sender);
-  }
-
-  // ================== 💸💸💸 Distribute AlphaToken 💸💸💸 ========================
-
-  /**
-    @dev set distributor address
-   */
-  function setDistributor(IAlphaDistributor _distributor) public onlyOwner {
-    distributor = _distributor;
-  }
-
-  /**
-    @dev set vesting alpha address
-   */
-  function setVestingAlpha(IVestingAlpha _vestingAlpha) public onlyOwner {
-    vestingAlpha = _vestingAlpha;
-  }
-
-  /**
-   * @dev implement function of IAlphaReceiver interface to
-   * receive Alpha token rewards from the distributor
-   * @param _amount the amount of Alpha token to receive
-   */
-  function receiveAlpha(uint256 _amount) external override {
-    require(msg.sender == address(distributor), "Only distributor can call receive Alpha");
-    // Calculate total borrow value.
-    uint256[] memory borrows = new uint256[](tokenList.length);
-    uint256 totalBorrow = 0;
-
-    for (uint256 i = 0; i < tokenList.length; i++) {
-      if (pools[address(tokenList[i])].status == PoolStatus.ACTIVE) {
-        borrows[i] = totalBorrowInUSD(tokenList[i]);
-        totalBorrow = totalBorrow.add(borrows[i]);
-      }
-    }
-    // This contract should not receive alpha token if no borrow value lock in.
-    if (totalBorrow == 0) {
-      return;
-    }
-    distributor.alphaToken().transferFrom(msg.sender, address(this), _amount);
-    for (uint256 i = 0; i < borrows.length; i++) {
-      Pool storage pool = pools[address(tokenList[i])];
-      if (pool.status == PoolStatus.ACTIVE) {
-        uint256 portion = _amount.mul(borrows[i]).div(totalBorrow);
-        (uint256 lendersGain, uint256 borrowersGain) = splitReward(tokenList[i], portion);
-        // Distribute the Alpha token to the lenders (AlToken holder)
-        distributor.alphaToken().approve(address(pool.alToken), lendersGain);
-        pool.alToken.receiveAlpha(lendersGain);
-
-        // Distribute the Alpha token to the borrowers
-        updateBorrowAlphaReward(pool, borrowersGain);
-      }
-    }
-  }
-
-  /**
-   * @dev claim Alpha token rewards from all ERC20 token pools and create receipt for caller
-   */
-  function claimAlpha() external updateAlphaReward nonReentrant {
-    for (uint256 i = 0; i < tokenList.length; i++) {
-      Pool storage pool = pools[address(tokenList[i])];
-
-      // claim Alpha rewards as a lender
-      pool.alToken.claimCurrentAlphaRewardByOwner(msg.sender);
-
-      // claim Alpha reward as a borrower
-      claimCurrentAlphaReward(tokenList[i], msg.sender);
-    }
-  }
-
-  /**
-   * @dev update Alpha rewards for the borrower of the ERC20 pool
-   * @param _pool the ERC20 token pool to update the Alpha rewards
-   * @param _amount the total amount of the rewards to all borrowers of the pool
-   */
-  function updateBorrowAlphaReward(Pool storage _pool, uint256 _amount) internal {
-    _pool.totalAlphaTokenReward = _pool.totalAlphaTokenReward.add(_amount);
-    if (_pool.totalBorrowShares == 0) {
-      return;
-    }
-    _pool.alphaMultiplier = _pool.alphaMultiplier.add(
-      _amount.mul(1e12).div(_pool.totalBorrowShares)
-    );
-  }
-
-  /**
-   * @dev split the Alpha rewards between the lenders and borrowers
-   * @param _token the ERC20 token pool
-   * @param _amount the amount of Alpha token rewards to split
-   * @return lendersGain - the rewards's lenders gain
-   * borrowersGain - the rewards's borrower gain
-   */
-  function splitReward(ERC20 _token, uint256 _amount)
-    internal
-    view
-    returns (uint256 lendersGain, uint256 borrowersGain)
-  {
-    Pool storage pool = pools[address(_token)];
-    uint256 utilizationRate = pool.poolConfig.getUtilizationRate(
-      pool.totalBorrows,
-      getTotalLiquidity(_token)
-    );
-    uint256 optimal = pool.poolConfig.getOptimalUtilizationRate();
-    if (utilizationRate <= optimal) {
-      // lenders gain = amount * ((EQUILIBRIUM / OPTIMAL) * utilization rate)
-      lendersGain = (optimal == 0)
-        ? 0
-        : _amount.wadMul(EQUILIBRIUM).wadMul(utilizationRate).wadDiv(optimal);
-    } else {
-      // lenders gain = amount * ((EQUILIBRIUM * (utilization rate - OPTIMAL)) / (MAX_UTILIZATION_RATE - OPTIMAL)) + EQUILIBRIUM)
-      lendersGain = (utilizationRate >= MAX_UTILIZATION_RATE)
-        ? _amount
-        : _amount.wadMul(
-          EQUILIBRIUM
-            .wadMul(utilizationRate.sub(optimal))
-            .wadDiv(MAX_UTILIZATION_RATE.sub(optimal))
-            .add(EQUILIBRIUM)
-        );
-    }
-    // borrowers gain = amount - lenders gain
-    borrowersGain = _amount.sub(lendersGain);
-  }
-
-  function calculateAlphaReward(ERC20 _token, address _account) public view returns (uint256) {
-    Pool storage pool = pools[address(_token)];
-    UserPoolData storage userData = userPoolData[_account][address(_token)];
-    //               reward start block                                        now
-    // Global                |----------------|----------------|----------------|
-    // User's latest reward  |----------------|----------------|
-    // User's Alpha rewards                                    |----------------|
-    // reward = [(Global Alpha multiplier - user's lastest Alpha multiplier) * user's Alpha token] / 1e12
-    uint256 pending = pool
-      .alphaMultiplier
-      .sub(userData.latestAlphaMultiplier)
-      .mul(userData.borrowShares)
-      .div(1e12);
-    return pending < pool.totalAlphaTokenReward ? pending : pool.totalAlphaTokenReward;
-  }
-
-  /**
-   * @dev claim Alpha tokens rewards
-   * @param _token the ERC20 pool
-   * @param _account the user account that will claim the Alpha tokens
-   */
-  function claimCurrentAlphaReward(ERC20 _token, address _account) internal {
-    // No op if alpha distributor didn't be set in lending pool.
-    if (address(distributor) == address(0)) {
-      return;
-    }
-    Pool storage pool = pools[address(_token)];
-    UserPoolData storage userData = userPoolData[_account][address(_token)];
-    uint256 reward = calculateAlphaReward(_token, _account);
-    pool.totalAlphaTokenReward = pool.totalAlphaTokenReward.sub(reward);
-    userData.latestAlphaMultiplier = pool.alphaMultiplier;
-    sendAlphaReward(_account, reward);
-  }
-
-  /**
-   * @dev send Alpha tokens to the recipient
-   * @param _recipient the recipient of the Alpha reward
-   * @param _amount the Alpha reward amount to send
-   */
-  function sendAlphaReward(address _recipient, uint256 _amount) internal {
-    if (address(vestingAlpha) == address(0)) {
-      distributor.alphaToken().transfer(_recipient, _amount);
-    } else {
-      distributor.alphaToken().approve(address(vestingAlpha), _amount);
-      vestingAlpha.accumulateAlphaToUser(_recipient, _amount);
-    }
   }
 }

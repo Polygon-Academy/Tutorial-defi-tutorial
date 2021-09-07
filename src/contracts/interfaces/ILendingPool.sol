@@ -1,7 +1,5 @@
 pragma solidity 0.6.11;
 
-import "./IAlphaDistributor.sol";
-import "./IVestingAlpha.sol";
 
 /**
  * @title ILendingPool interface
@@ -15,13 +13,4 @@ interface ILendingPool {
    **/
   function isAccountHealthy(address _account) external view returns (bool);
 
-  /**
-   * @notice Returns the Alpha distributor.
-   **/
-  function distributor() external view returns (IAlphaDistributor);
-
-  /**
-   * @notice Returns the Vesting Alpha constract
-   **/
-  function vestingAlpha() external view returns (IVestingAlpha);
 }
