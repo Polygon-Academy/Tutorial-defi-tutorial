@@ -5,7 +5,7 @@
     "rateSlope2": "40000000000000000",
     "collateralPercent": "750000000000000000",
     "liquidationBonus": "1050000000000000000",
-    "pair": ["WETH", "USD"]
+    "pair": ["ETH", "USD"]
   },
 
   "MATIC": {
@@ -23,6 +23,6 @@
     "rateSlope2": "40000000000000000",
     "collateralPercent": "750000000000000000",
     "liquidationBonus": "1050000000000000000",
-    "pair": ["BTCB", "USD"]
+    "pair": ["BTC", "USD"]
   }
 }

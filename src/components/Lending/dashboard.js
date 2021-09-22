@@ -30,6 +30,10 @@ const DashBoard = () => {
             return fixNumber(BigNumber.div(1e9).toNumber() / 1e9)
         }
 
+        const convertPrice = (BigNumber) => {
+            return BigNumber.div(1e8).toNumber()
+        }
+
         const loadDashboard = async () => {
             if (library) {
                 const provider = account ? library.getSigner() : library;
@@ -38,9 +42,9 @@ const DashBoard = () => {
                 const udata = await LendingContract.getUserAccount(account)
 
                 let userData = {
-                    tBorrowBalance: convertInt(udata.totalBorrowBalanceBase),
-                    tCollateralBalance: convertInt(udata.totalCollateralBalanceBase),
-                    tLiquidityBalance: convertInt(udata.totalLiquidityBalanceBase)
+                    tBorrowBalance: convertPrice(udata.totalBorrowBalanceBase),
+                    tCollateralBalance: convertPrice(udata.totalCollateralBalanceBase),
+                    tLiquidityBalance: convertPrice(udata.totalLiquidityBalanceBase)
                 }
 
 
@@ -48,10 +52,11 @@ const DashBoard = () => {
                     const address = tokenAddresses[symbol]
                     const data = await LendingContract.getPool(address)
                     const price = await PriceOracleContract.getAssetPrice(address)
+
                     let token = {
                         symbol: symbol,
                         tokenAddr: address,
-                        price: convertInt(price),
+                        price: convertPrice(price),
                         poolConfAddress: data.poolConfigAddress,
                         alTokenAddress: data.alTokenAddress,
                         tAvaiLiquidity: convertInt(data.totalAvailableLiquidity),
