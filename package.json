@@ -5,6 +5,7 @@
   "dependencies": {
     "@chainlink/contracts": "^0.2.2",
     "@ethersproject/providers": "^5.4.5",
+    "@graphprotocol/graph-cli": "^0.22.1",
     "@openzeppelin/contracts": "^3.1.0",
     "@testing-library/jest-dom": "^5.14.1",
     "@testing-library/react": "^11.2.7",
@@ -21,6 +22,7 @@
     "react-scripts": "^4.0.3",
     "semantic-ui-css": "^2.4.1",
     "semantic-ui-react": "^2.0.3",
+    "truffle-plugin-verify": "^0.5.15",
     "web-vitals": "^1.1.2"
   },
   "scripts": {
