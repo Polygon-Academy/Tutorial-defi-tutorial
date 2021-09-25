@@ -1,9 +1,8 @@
-require('dotenv').config();
-
+require("dotenv").config();
 
 const mnemonic = process.env.MNEMONIC;
+const polygonscanAPI = process.env.ETHERSCANAPI;
 const HDWalletProvider = require("@truffle/hdwallet-provider");
-console.log(mnemonic)
 
 module.exports = {
   networks: {
@@ -18,19 +17,18 @@ module.exports = {
       network_id: 137,
       confirmations: 2,
       timeoutBlocks: 200,
-      skipDryRun: true
+      skipDryRun: true,
     },
     mumbai: {
       provider: new HDWalletProvider(mnemonic, process.env.POLYGON_MUMBAI_RPC),
       network_id: 80001,
       confirmations: 2,
       timeoutBlocks: 200,
-      skipDryRun: true
-    }
-
+      skipDryRun: true,
+    },
   },
-  contracts_directory: './src/contracts/',
-  contracts_build_directory: './src/abis/',
+  contracts_directory: "./src/contracts/",
+  contracts_build_directory: "./src/abis/",
   compilers: {
     solc: {
       version: "0.6.11",
@@ -38,8 +36,15 @@ module.exports = {
         optimizer: {
           enabled: true,
           runs: 200,
-        }
-      }
-    }
-  }
-}
+        },
+      },
+    },
+  },
+
+  // EtherScan / PolygonScan Verify ABI
+  plugins: ["truffle-plugin-verify"],
+
+  api_keys: {
+    polygonscan: polygonscanAPI,
+  },
+};

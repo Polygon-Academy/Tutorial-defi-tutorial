@@ -1,5 +1,5 @@
-const StdReferenceBasic = artifacts.require("StdReferenceBasic")
-const StdReferenceProxy = artifacts.require("StdReferenceProxy")
+const StdReferenceChain = artifacts.require("StdReferenceChain");
+const StdReferenceProxy = artifacts.require("StdReferenceProxy");
 const BandPriceOracle = artifacts.require("BandPriceOracle");
 const poolConfigData = require("./config/develop_pool_config.json");
 
@@ -9,23 +9,15 @@ const MockBTCToken = artifacts.require("./mock/BTCToken.sol");
 
 module.exports = (deployer, network, accounts) => {
   deployer.then(async () => {
-    await deployer.deploy(StdReferenceBasic);
-    const stdReferenceBasic = await StdReferenceBasic.deployed();
-
-    // step 1 : deploy the basicPriceOracle 
-    let tokenPriceOracle = {};
-    tokenPriceOracle["symbols"] = ["WETH", "MATIC", "BTCB"]
-    tokenPriceOracle["rates"] = ["3744000000000", "1460000000", "48432520000000"]
-    tokenPriceOracle["resolvetimes"] = ["1630531168", "1630531168", "1630531168"]
-
-    await stdReferenceBasic.relay(tokenPriceOracle["symbols"], tokenPriceOracle["rates"], tokenPriceOracle["resolvetimes"]);
-
+    // step 1 : deploy the ChainPriceOracle;
+    await deployer.deploy(StdReferenceChain);
+    const stdReferenceChain = await StdReferenceChain.deployed();
 
     // step 2 : deploy the PriceOracleProxy
-    const tokenPriceOralceAddress = (await StdReferenceBasic.deployed()).address;
+    const tokenPriceOralceAddress = stdReferenceChain.address;
     await deployer.deploy(StdReferenceProxy, tokenPriceOralceAddress);
 
-    // step 3 : deploy the BandPriceOracle 
+    // step 3 : deploy the BandPriceOracle
     const stdReferenceAddress = (await StdReferenceProxy.deployed()).address;
     let tokenAddresses = {};
     tokenAddresses["WETH"] = (await MockETHToken.deployed()).address;
